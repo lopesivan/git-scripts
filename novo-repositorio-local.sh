@@ -66,21 +66,33 @@ git clone file://${HOME}/git/${dir}.git
 cd ${dir}
 git flow init -d
 
-cd ${dir}
+f=GOAL
 git flow feature start goal
-echo descreva a meta > GOAL
-git add GOAL
+ > $f
+git an
+echo descreva a meta > $f
+git an
+git an
 git ci -m "descrição da minha meta"
 
+f=README.md
 git flow feature start readme
-echo documentação inicial > README.md
-git add README.md
+ > $f
+git an
+echo documentação inicial > $f
+git an
+git an
 git ci -m "descrição do projeto"
 
 git flow  feature start license
 echo GNU GPL versão 3 > LICENCE
-git add LICENCE
+git an
 git ci -m "GPLv3"
+
+git flow  feature start commit_msg
+cp $(dirname $(readlink -f $(which git-novo-repositorio-local)))/commit_message.md .
+git add commit_message.md
+git ci -m "adiciona dicas de como escrever commits"
 
 git co develop
 cat <<EOF >HOWTOCLONE
@@ -90,6 +102,13 @@ EOF
 
 git add HOWTOCLONE
 git ci -m "Exemplo de como clonar o projeto *${dir}*"
+
+echo publicando...
+git push origin  develop
+git push origin  feature/goal
+git push origin  feature/license
+git push origin  feature/readme
+git push origin  master
 
 echo
 echo bye
