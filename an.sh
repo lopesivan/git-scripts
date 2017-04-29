@@ -43,78 +43,90 @@ UNMODIFIED='\e[1;49;92mUnmodified\e[0m'
         LR='\e[38;5;33mLocal Repository\e[0m'
         WD='\e[1;39;1mWorking directory\e[0m'
 # ----------------------------------------------------------------------------
+
+add_manager () {
+  git status --short --branch |
+  sed -r -e '/^#/d' \
+    -e 's/\s/@/g' \
+    -e 's/@\->@/ ➜ /g' \
+    -e 's/(^..)(.*)/\1;\2/' |
+  head -1|
+  while IFS=';' read state file; do
+
+    file=${file#@}
+    case x${state} in
+      x\?\?)
+        echo File:\`$BOLD${file}$RESET\'
+        echo -e $UNTRACKED \> $STAGED
+        echo \$ git add $file
+        git add $file
+        ;;
+      xA@)
+        echo File:\`$BOLD${file}$RESET\'
+        echo -e $STAGED \> $LR
+        echo \$ git commit -m \"Adiciona o arquivo $file\"
+        git commit -m "Adiciona o arquivo $file"
+        ;;
+      xAM)
+        echo File:\`$BOLD${file}$RESET\'
+        echo -e $STAGED \> $LR
+        echo \$ git commit -m \"Primeira revisão do arquivo $file\"
+        git commit -m "Primeira revisão do arquivo $file"
+        ;;
+      x@M)
+        echo File:\`$BOLD${file}$RESET\'
+        echo -e $WD \> $STAGED
+        echo \$ git add $file
+        git add $file
+        ;;
+      xM@)
+        echo File:\`$BOLD${file}$RESET\'
+        echo -e $STAGED \> $LR
+        echo \$ git commit -m \"Atualiza o arquivo $file\"
+        git commit -m "Atualiza o arquivo $file"
+        ;;
+      x@D)
+        echo File:\`$BOLD${file}$RESET\'
+        echo -e $WD \> $STAGED
+        echo \$ git add $file
+        git add $file
+        ;;
+      xD@)
+        echo File:\`$BOLD${file}$RESET\'
+        echo -e $STAGED \> $DELETED
+        echo \$ git commit -m \"Remove o arquivo $file\"
+        git commit -m "Remove o arquivo $file"
+        ;;
+      x@R)
+        echo File:\`$BOLD${file}$RESET\'
+        echo -e $WD \> $STAGED
+        echo \$ git add $file
+        git add $file
+        ;;
+      xR@)
+        echo File:\`$BOLD${file}$RESET\'
+        echo -e $STAGED \> $LR
+        echo \$ git commit -m \"Renomeia o arquivo $file\"
+        git commit -m "Renomeia o arquivo $file"
+        ;;
+      x)
+        echo  OUT
+        ;;
+    esac
+
+  done
+}
+
 # Run!
-git status --short --branch
-#clear
-git status --short --branch |
-sed -r -e '/^#/d' \
-       -e 's/\s/@/g' \
-       -e 's/@\->@/ ➜ /g' \
-       -e 's/(^..)(.*)/\1;\2/' |
-head -1 |
-while IFS=';' read state file; do
+if ! [[ `git status --porcelain` ]]; then
+  #no changes
+  git status --short --branch
+  false
+else
+  # changes
+    add_manager
+  true
+fi
 
-  file=${file#@}
-  case x${state} in
-    x\?\?)
-      echo File:\`$BOLD${file}$RESET\'
-      echo -e $UNTRACKED \> $STAGED
-      echo \$ git add $file
-      git add $file
-      ;;
-    xA@)
-      echo File:\`$BOLD${file}$RESET\'
-      echo -e $STAGED \> $LR
-      echo \$ git commit -m \"Adiciona o arquivo $file\"
-      git commit -m "Adiciona o arquivo $file"
-      ;;
-    xAM)
-      echo File:\`$BOLD${file}$RESET\'
-      echo -e $STAGED \> $LR
-      echo \$ git commit -m \"Primeira revisão do arquivo $file\"
-      git commit -m "Primeira revisão do arquivo $file"
-      ;;
-    x@M)
-      echo File:\`$BOLD${file}$RESET\'
-      echo -e $WD \> $STAGED
-      echo \$ git add $file
-      git add $file
-      ;;
-    xM@)
-      echo File:\`$BOLD${file}$RESET\'
-      echo -e $STAGED \> $LR
-      echo \$ git commit -m \"Atualiza o arquivo $file\"
-      git commit -m "Atualiza o arquivo $file"
-      ;;
-    x@D)
-      echo File:\`$BOLD${file}$RESET\'
-      echo -e $WD \> $STAGED
-      echo \$ git add $file
-      git add $file
-      ;;
-    xD@)
-      echo File:\`$BOLD${file}$RESET\'
-      echo -e $STAGED \> $DELETED
-      echo \$ git commit -m \"Remove o arquivo $file\"
-      git commit -m "Remove o arquivo $file"
-      ;;
-    x@R)
-      echo File:\`$BOLD${file}$RESET\'
-      echo -e $WD \> $STAGED
-      echo \$ git add $file
-      git add $file
-      ;;
-    xR@)
-      echo File:\`$BOLD${file}$RESET\'
-      echo -e $STAGED \> $LR
-      echo \$ git commit -m \"Renomeia o arquivo $file\"
-      git commit -m "Renomeia o arquivo $file"
-      ;;
-    x)
-      echo  OUT
-      ;;
-  esac
-
-done
 # ----------------------------------------------------------------------------
 exit 0
