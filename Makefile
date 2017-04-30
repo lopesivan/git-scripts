@@ -21,7 +21,7 @@ install-$(PROJECT): chmod-755-$(PROJECT)
 		while read line; do \
 			f=$${line##*/}; \
 			l=$${f%.sh};    \
-			ln -s $$line $(prefix)/bin/git-$${l##*/};\
+			sudo ln -s $$line $(prefix)/bin/git-$${l##*/};\
 		done)
 
 clean: chmod-644-$(PROJECT)
@@ -29,5 +29,5 @@ clean: chmod-644-$(PROJECT)
 		while read line; do \
 			f=$${line##*/}; \
 			l=$${f%.sh};    \
-			rm $(prefix)/bin/git-$${l##*/};\
+			sudo rm $(prefix)/bin/git-$${l##*/};\
 		done)
