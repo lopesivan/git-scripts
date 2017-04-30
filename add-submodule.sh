@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 
-test -n "$DEBUG" && set -x
+__debug__=0
+ECHO=
+[ "$1" = '-n'      ] && { __debug__=1; ECHO=echo;shift; }
+[ "$1" = '-d'      ] && { __debug__=1; ECHO=echo;shift; }
+[ "$1" = '--debug' ] && { __debug__=1; ECHO=echo;shift; }
 
+test -n "$DEBUG" && set -x
 #                      __ __       ___
 #                     /\ \\ \    /'___`\
 #                     \ \ \\ \  /\_\ /\ \
@@ -62,9 +67,9 @@ if [[ "$repo" == "$user" ]]; then
   user=$(git config --get github.user)
 fi
 
-echo git submodule  add git@github.com:${user}/${repo}.git
+$ECHO git submodule  add git@github.com:${user}/${repo}.git
 submodule=$repo
-echo git commit -m "Added $submodule submodule"
+$ECHO git commit -m "Added $submodule submodule"
 #echo git push
 
 # ----------------------------------------------------------------------------

@@ -2,6 +2,8 @@
 
 test -n "$DEBUG" && set -x
 __debug__=0
+ECHO=
+[ "$1" = '-n'      ] && { __debug__=1; ECHO=echo;shift; }
 [ "$1" = '-d'      ] && { __debug__=1; ECHO=echo;shift; }
 [ "$1" = '--debug' ] && { __debug__=1; ECHO=echo;shift; }
 #                      __ __       ___
@@ -55,6 +57,7 @@ uri=$(echo $1| sed 's=.*.com/==')
 # Run!
 user=${uri%/*}
 repo=${uri#*/}
+submodule=$repo
 
 # echo 'uri =' $uri
 # echo 'user=' $user
@@ -63,13 +66,13 @@ repo=${uri#*/}
 if [[ "$repo" == "$user" ]]; then
   user=$(git config --get github.user)
 fi
-gcc -v
-# asubmodule=$submodule
-# git submodule deinit $asubmodule
-# git rm $asubmodule
-# git rm --cached $asubmodule
-# rm -rf .git/modules/$asubmodule
-# git commit -m "Removendo submodulo $asubmodule"
+
+asubmodule=$submodule
+$ECHO git submodule deinit $asubmodule
+$ECHO git rm $asubmodule
+$ECHO git rm --cached $asubmodule
+$ECHO rm -rf .git/modules/$asubmodule
+$ECHO git commit -m "Removendo submodulo $asubmodule"
 #echo git push
 # ----------------------------------------------------------------------------
 exit 0
