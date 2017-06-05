@@ -33,14 +33,14 @@ set -euo pipefail
 # ----------------------------------------------------------------------------
 # Run!
 
-# fbr - checkout git branch
-fbr() {
+ls_files_branches() {
   local branches branch
   branches=$(git branch -vv ) &&
   branch=$(echo "$branches" | fzf +m) &&
-  git checkout $(echo "$branch" | awk '{print $1}' | sed "s/.* //")
+  git ls-tree -r --name-only $(echo "$branch" | awk '{print $1}' | sed "s/.* //")
 }
 
-fbr
+ls_files_branches
+
 # ----------------------------------------------------------------------------
 exit 0
