@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+
+test -n "$DEBUG" && set -x
+
 #                      __ __       ___
 #                     /\ \\ \    /'___`\
 #                     \ \ \\ \  /\_\ /\ \
@@ -10,48 +13,53 @@
 #
 #
 #      Author: Ivan Lopes
-#        Mail: ivan (at) 42algoritmos (dot) com (dot) br
+#        Mail: ivan@42algoritmos.com.br
 #        Site: http://www.42algoritmos.com.br
 #     License: gpl
 #       Phone: +1 561 801 7985
 #    Language: Shell Script
-#        File: git.sh
-#        Date: Qua 22 Fev 2017 03:26:21 BRT
+#        File: ls-repo.sh
+#        Date: Seg 30 Abr 2018 23:39:49 -03
 # Description:
-#
 # ----------------------------------------------------------------------------
-#
+# Modo strict
+set -euo pipefail
 # ----------------------------------------------------------------------------
 
 ##############################################################################
 ##############################################################################
 ##############################################################################
-
 # ----------------------------------------------------------------------------
 # Run!
+# run ()
+# {
 
-for f in $@; do
-  # sleep 2
+# local cmd=$(
+# find ~/git -type d -name \*.git |
+#   while read repo; do
+#     echo git clone file://$repo
+#   done|sort|
+#   fzf-tmux -l 100% --multi --reverse --select-1 --exit-0
+# )
+# [[ -n "$cmd" ]] &&
+#   echo ${cmd}|
+#   tee >(xclip -i -selection clipboard)
+#   eval `xclip -selection clipboard -o`
+# }
 
-  if [[ -f ${f}.txt ]]; then
-    n=1
-    while [[ -f ${f}_${n}.txt ]]
-    do
-      n=$((n+1))
-    done
-    filename="${f}_${n}.txt"
-  else
-    filename="${f}.txt"
-  fi
+run ()
+{
+    find $1                    \
+        -not -iwholename '*/.git' \
+        -type d                   \
+        -name \*.git              \
+        -printf "git clone $1/%P\n" |
+        sort                        |
+        fzf                         |
+        xclip -i -selection clipboard
+}
 
-  echo create : "$filename"
-  echo -e "`date`\narquivo: $filename" > $filename
-  command="git add $filename"
-  echo command: $command
-  $command
-  command="git commit -m $filename"
-  $command
-done
+run ~/git
 
 # ----------------------------------------------------------------------------
 exit 0

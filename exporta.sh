@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+
+test -n "$DEBUG" && set -x
+
 #                      __ __       ___
 #                     /\ \\ \    /'___`\
 #                     \ \ \\ \  /\_\ /\ \
@@ -9,18 +12,18 @@
 #                                         Algoritimos
 #
 #
-#      Author: Ivan Lopes
-#        Mail: ivan (at) 42algoritmos (dot) com (dot) br
+#      Author: Mr. Ivan
+#        Mail: lopesivan.ufrj@gmail.com
 #        Site: http://www.42algoritmos.com.br
 #     License: gpl
 #       Phone: +1 561 801 7985
 #    Language: Shell Script
-#        File: git.sh
-#        Date: Qua 22 Fev 2017 03:26:21 BRT
+#        File: expota.sh
+#        Date: Qua 03 Out 2018 09:30:24 -03
 # Description:
-#
 # ----------------------------------------------------------------------------
-#
+# Modo strict
+set -euo pipefail
 # ----------------------------------------------------------------------------
 
 ##############################################################################
@@ -29,29 +32,36 @@
 
 # ----------------------------------------------------------------------------
 # Run!
+abort()
+{
+    echo >&2 '
+***************
+*** ABORTED ***
+***************
+'
+    echo "Bye. Exiting..." >&2
+    exit 1
+}
 
-for f in $@; do
-  # sleep 2
+trap 'abort' 0
 
-  if [[ -f ${f}.txt ]]; then
-    n=1
-    while [[ -f ${f}_${n}.txt ]]
-    do
-      n=$((n+1))
-    done
-    filename="${f}_${n}.txt"
-  else
-    filename="${f}.txt"
-  fi
+set -e
 
-  echo create : "$filename"
-  echo -e "`date`\narquivo: $filename" > $filename
-  command="git add $filename"
-  echo command: $command
-  $command
-  command="git commit -m $filename"
-  $command
-done
+# Add your script below....
+# If an error occurs, the abort() function will be called.
+#----------------------------------------------------------
+# ===> Your script goes here
+echo `tput bold setb 3` git clone `tput setaf 2` "git://localhost/$(basename $(pwd))"`tput sgr0`
 
+git daemon --export-all --base-path=$(pwd)
+
+# Done!
+trap : 0
+
+echo >&2 '
+************
+*** DONE ***
+************
+'
 # ----------------------------------------------------------------------------
 exit 0

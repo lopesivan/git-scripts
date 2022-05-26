@@ -53,23 +53,20 @@ fi
 # git push
 
 ##############################################################################
-uri=$(echo $1| sed 's=.*.com/==')
-# ----------------------------------------------------------------------------
-# Run!
-user=${uri%/*}
-repo=${uri#*/}
+url="${1%.git}".git
+#echo url=$url
+url_without_suffix="${url%.*}"
+reponame="$(basename "${url_without_suffix}")"
+#echo Get repository name: $reponame
+hostname="$(basename "${url_without_suffix%/${reponame}}")"
+#echo "Get user (host) name afterwards:" $hostname
 
-# echo 'uri =' $uri
-# echo 'user=' $user
-# echo 'repo=' $repo
 
-if [[ "$repo" == "$user" ]]; then
-  user=$(git config --get github.user)
-fi
-
-$ECHO git submodule  add git@github.com:${user}/${repo}.git
-submodule=$repo
+$ECHO git submodule add $url
+submodule=$reponame
+$ECHO git add .gitmodules $submodule
 $ECHO git commit -m "Added $submodule submodule"
+$ECHO git submodule init
 #echo git push
 
 # ----------------------------------------------------------------------------

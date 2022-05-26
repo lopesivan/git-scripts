@@ -1,33 +1,28 @@
 PROJECT = git-scripts
 
-prefix ?= /usr/local
+PREFIX ?= /usr/local
+
+SRCS = $(shell ls *.sh)
 
 install: install-$(PROJECT)
 
 chmod-755-$(PROJECT):
-	@(find . -name \*.sh -exec readlink -f {} \; | \
-		while read line; do \
-			chmod +x $$line ;\
-		done)
+	@(for f in $(SRCS);  \
+		do chmod +x $$f; \
+	done)
 
 chmod-644-$(PROJECT):
-	@(find . -name \*.sh -exec readlink -f {} \; | \
-		while read line; do \
-			chmod -x $$line ;\
-		done)
+	@(for f in $(SRCS);  \
+		do chmod -x $$f; \
+	done)
 
 install-$(PROJECT): chmod-755-$(PROJECT)
-	@(find . -name \*.sh -exec readlink -f {} \; | \
-		while read line; do \
-			f=$${line##*/}; \
-			l=$${f%.sh};    \
-			sudo ln -s $$line $(prefix)/bin/git-$${l##*/};\
-		done)
+	mkdir -p $(PREFIX)/bin
+	@(for f in $(SRCS); \
+		do  cp $$f $(PREFIX)/bin/git-$${f%.sh};  \
+	done)
 
 clean: chmod-644-$(PROJECT)
-	@(find . -name \*.sh -exec readlink -f {} \; | \
-		while read line; do \
-			f=$${line##*/}; \
-			l=$${f%.sh};    \
-			sudo rm $(prefix)/bin/git-$${l##*/};\
-		done)
+	@(for f in $(SRCS); \
+		do  rm $(PREFIX)/bin/git-$${f%.sh};  \
+	done)

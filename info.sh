@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+
+test -n "$DEBUG" && set -x
+
 #                      __ __       ___
 #                     /\ \\ \    /'___`\
 #                     \ \ \\ \  /\_\ /\ \
@@ -10,17 +13,17 @@
 #
 #
 #      Author: Ivan Lopes
-#        Mail: ivan (at) 42algoritmos (dot) com (dot) br
+#        Mail: ivan@42algoritmos.com.br
 #        Site: http://www.42algoritmos.com.br
 #     License: gpl
 #       Phone: +1 561 801 7985
 #    Language: Shell Script
-#        File: git.sh
-#        Date: Qua 22 Fev 2017 03:26:21 BRT
+#        File: mk-update-alternatives.sh
+#        Date: Qua 09 Mai 2018 20:27:28 -03
 # Description:
-#
 # ----------------------------------------------------------------------------
-#
+# Modo strict
+#set -euo pipefail
 # ----------------------------------------------------------------------------
 
 ##############################################################################
@@ -29,29 +32,8 @@
 
 # ----------------------------------------------------------------------------
 # Run!
-
-for f in $@; do
-  # sleep 2
-
-  if [[ -f ${f}.txt ]]; then
-    n=1
-    while [[ -f ${f}_${n}.txt ]]
-    do
-      n=$((n+1))
-    done
-    filename="${f}_${n}.txt"
-  else
-    filename="${f}.txt"
-  fi
-
-  echo create : "$filename"
-  echo -e "`date`\narquivo: $filename" > $filename
-  command="git add $filename"
-  echo command: $command
-  $command
-  command="git commit -m $filename"
-  $command
-done
-
+echo `tput bold` `tput rev` Repositório: `tput setaf 3` ` git remote show origin -n | grep "Fetch URL:" | sed 's=.*/=='`  `tput sgr0`
+echo `tput bold` `tput rev` Arquivos: `tput setf 1` "Abort!"  `tput sgr0`
+echo
 # ----------------------------------------------------------------------------
 exit 0

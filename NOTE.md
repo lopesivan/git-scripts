@@ -15,7 +15,8 @@ Ie:
       fi
     done
 
-(This is be adapted to your case, since here it always checkout the file from the `master` branch.)
+(This is be adapted to your case, since here it always checkout the file from
+the `master` branch.)
 
   [1]: http://stackoverflow.com/users/410126/fork0
   [2]: http://stackoverflow.com/questions/11940977/how-to-update-a-file-across-all-branches-in-a-git-repository#comment15906759_11940977

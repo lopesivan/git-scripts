@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+
+test -n "$DEBUG" && set -x
+
 #                      __ __       ___
 #                     /\ \\ \    /'___`\
 #                     \ \ \\ \  /\_\ /\ \
@@ -15,12 +18,12 @@
 #     License: gpl
 #       Phone: +1 561 801 7985
 #    Language: Shell Script
-#        File: git.sh
-#        Date: Qua 22 Fev 2017 03:26:21 BRT
+#        File: ls-branch.sh
+#        Date: Qui 30 Mar 2017 08:39:13 BRT
 # Description:
-#
 # ----------------------------------------------------------------------------
-#
+# Modo strict
+#set -euo pipefail
 # ----------------------------------------------------------------------------
 
 ##############################################################################
@@ -30,28 +33,10 @@
 # ----------------------------------------------------------------------------
 # Run!
 
-for f in $@; do
-  # sleep 2
+fbr() {
+  echo git merge --no-ff $@ --no-commit
+}
 
-  if [[ -f ${f}.txt ]]; then
-    n=1
-    while [[ -f ${f}_${n}.txt ]]
-    do
-      n=$((n+1))
-    done
-    filename="${f}_${n}.txt"
-  else
-    filename="${f}.txt"
-  fi
-
-  echo create : "$filename"
-  echo -e "`date`\narquivo: $filename" > $filename
-  command="git add $filename"
-  echo command: $command
-  $command
-  command="git commit -m $filename"
-  $command
-done
-
+fbr $@
 # ----------------------------------------------------------------------------
 exit 0

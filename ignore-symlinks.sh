@@ -2,24 +2,6 @@
 
 test -n "$DEBUG" && set -x
 
-#                      __ __       ___
-#                     /\ \\ \    /'___`\
-#                     \ \ \\ \  /\_\ /\ \
-#                      \ \ \\ \_\/_/// /__
-#                       \ \__ ,__\ // /_\ \
-#                        \/_/\_\_//\______/
-#                           \/_/  \/_____/
-#                                         Algoritimos
-#
-#
-#      Author: Ivan Lopes
-#        Mail: ivan@42algoritmos.com.br
-#        Site: http://www.42algoritmos.com.br
-#     License: gpl
-#       Phone: +1 561 801 7985
-#    Language: Shell Script
-#        File: ignore.sh
-#        Date: Qui 27 Abr 2017 22:34:10 BRT
 # Description:
 # ----------------------------------------------------------------------------
 # Modo strict

@@ -32,42 +32,50 @@ test -n "$DEBUG" && set -x
 
 # ----------------------------------------------------------------------------
 # Run!
-
+# git --no-pager log --abbrev-commit --abbrev=7 --pretty=format:'%h %s'
 # fbr - checkout git branch
-fbr() {
-  #echo cd $PWD| dmenu -i -l 52 -fn 'Droid Sans Mono-31' -nf yellow -nb black -sf black -sb white
-  #return 1
-  local branches branch
-  local state=normal
+cmd() {
+    git describe --abbrev=0 --tags || {
+        git tag -a 1.0.0 -m "My version 1.0.0"
+            return 1
+        }
 
-  branches=$(git branch)
+  #get highest tag number
+  local VERSION=$(git describe --abbrev=0 --tags)
 
-  if [ "$1" = "-f" ]; then
-    branches=$(git branch| grep feature)
-  fi
+  #replace . with space so can split into an array
+  local VERSION_BITS=(${VERSION//./ })
 
-  if [ "$1" = "-r" ]; then
-    branches=$(git branch -r)
-    state=remote
-  fi
+  #get number parts and increase last one by 1
+  local VNUM1=${VERSION_BITS[0]}
+  local VNUM2=${VERSION_BITS[1]}
+  local VNUM3=${VERSION_BITS[2]}
+  VNUM3=$((VNUM3+1))
 
-  branch=$(echo "$branches" |
-    dmenu -i \
-          -l 52 \
-          -fn 'Droid Sans Mono-31' \
-          -nf yellow \
-          -nb black \
-          -sf black \
-          -sb white)
+  #create new tag
+  local NEW_TAG="$VNUM1.$VNUM2.$VNUM3"
 
-  if [[ "remote" == "$state" ]]; then
-    git checkout -t $branch
-    # git switch $branch
+  echo `tput bold``tput rev`Updating $VERSION to `tput setaf 3`"$NEW_TAG"`tput sgr0`
+
+  #get current hash and see if it already has a tag
+  local GIT_COMMIT=`git rev-parse HEAD`
+  local NEEDS_TAG=`git describe --contains $GIT_COMMIT 2>/dev/null`
+
+  #only tag if no tag already
+  if [ -z "$NEEDS_TAG" ]; then
+      git tag $NEW_TAG
+
+      if ! [ -z $(git remote -v) ];
+      then
+          echo "Tagged with $NEW_TAG"
+          git push --tags
+      fi
   else
-    git checkout $branch
+      echo "Already a tag on this commit"
   fi
+
 }
 
-fbr $1
+cmd
 # ----------------------------------------------------------------------------
 exit 0

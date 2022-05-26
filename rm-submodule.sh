@@ -30,10 +30,6 @@ ECHO=
 set -euo pipefail
 # ----------------------------------------------------------------------------
 
-if test $# -eq 0; then
-  exit 1
-fi
-
 ##############################################################################
 # usage
 ##############################################################################
@@ -52,26 +48,17 @@ fi
 # git push
 
 ##############################################################################
-uri=$(echo $1| sed 's=.*.com/==')
-# ----------------------------------------------------------------------------
-# Run!
-user=${uri%/*}
-repo=${uri#*/}
-submodule=$repo
+_submodule=$(
+git config --file .gitmodules --get-regexp path | awk '{ print $2 }' | fzf-tmux
+)
 
-# echo 'uri =' $uri
-# echo 'user=' $user
-# echo 'repo=' $repo
+[ -n "$_submodule" ] || exit 1
 
-if [[ "$repo" == "$user" ]]; then
-  user=$(git config --get github.user)
-fi
-
-asubmodule=$submodule
+asubmodule=$_submodule
 $ECHO git submodule deinit $asubmodule
-$ECHO git rm $asubmodule
 $ECHO git rm --cached $asubmodule
-$ECHO rm -rf .git/modules/$asubmodule
+#$ECHO git rm -f $asubmodule
+#$ECHO rm -rf .git/modules/$asubmodule
 $ECHO git commit -m "Removendo submodulo $asubmodule"
 #echo git push
 # ----------------------------------------------------------------------------

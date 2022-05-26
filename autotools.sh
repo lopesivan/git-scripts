@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+
+test -n "$DEBUG" && set -x
+
 #                      __ __       ___
 #                     /\ \\ \    /'___`\
 #                     \ \ \\ \  /\_\ /\ \
@@ -10,48 +13,54 @@
 #
 #
 #      Author: Ivan Lopes
-#        Mail: ivan (at) 42algoritmos (dot) com (dot) br
+#        Mail: ivan@42algoritmos.com.br
 #        Site: http://www.42algoritmos.com.br
 #     License: gpl
 #       Phone: +1 561 801 7985
 #    Language: Shell Script
-#        File: git.sh
-#        Date: Qua 22 Fev 2017 03:26:21 BRT
+#        File: projections.sh
+#        Date: Sáb 23 Jun 2018 13:34:49 -03
 # Description:
-#
 # ----------------------------------------------------------------------------
-#
-# ----------------------------------------------------------------------------
+# Modo strict
 
 ##############################################################################
 ##############################################################################
 ##############################################################################
+dir=~/.vim/templates/autotools
 
-# ----------------------------------------------------------------------------
-# Run!
+file=$(
+find ${dir}/ -type f -name cmd.\*.md|
+sort |
+while read doc; do
+    head $doc               |
+    sed  -n '1,/^=\{64\}/p' |
+    sed -e '1d' -e '$d'     |
+    sed.joinlines           |
+    sed 's/  */ /g'         |
+    sed 's/^/\t/'
+done |
+  nl -s: |
+    fzf-tmux -l 100% --multi --reverse --query="$1" --select-1 --exit-0
+)
 
-for f in $@; do
-  # sleep 2
+#[ -n "$file" ] || exit 1
+[ -n "$file" ] || {
+    exit 1
+}
 
-  if [[ -f ${f}.txt ]]; then
-    n=1
-    while [[ -f ${f}_${n}.txt ]]
-    do
-      n=$((n+1))
-    done
-    filename="${f}_${n}.txt"
-  else
-    filename="${f}.txt"
-  fi
+N=$(echo $file| cut -d: -f1)
+echo $N
 
-  echo create : "$filename"
-  echo -e "`date`\narquivo: $filename" > $filename
-  command="git add $filename"
-  echo command: $command
-  $command
-  command="git commit -m $filename"
-  $command
-done
+find ${dir}/ -type f -name cmd.\*.md|
+sort |
+while read doc; do
+    let count++
+    if [ $count -eq $N ]; then
+        echo $doc
+        break
+    fi
+done | xargs -Ifile sed -n '/^#/p' file| sed 's/^#//' | sh
 
 # ----------------------------------------------------------------------------
 exit 0

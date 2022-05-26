@@ -45,12 +45,11 @@ UNMODIFIED='\e[1;49;92mUnmodified\e[0m'
 # ----------------------------------------------------------------------------
 
 add_manager () {
-  git status --short --branch |
-  sed -r -e '/^#/d' \
+  git status --porcelain |
+  sed -r \
     -e 's/\s/@/g' \
     -e 's/@\->@/ ➜ /g' \
     -e 's/(^..)(.*)/\1;\2/' |
-  head -1|
   while IFS=';' read state file; do
 
     file=${file#@}
@@ -108,6 +107,12 @@ add_manager () {
         echo -e $STAGED \> $LR
         echo \$ git commit -m \"Renomeia o arquivo $file\"
         git commit -m "Renomeia o arquivo $file"
+        ;;
+      xRM)
+        echo File:\`$BOLD${file}$RESET\'
+        echo -e $STAGED \> $LR
+        echo \$ git commit -m \"Atualiza o arquivo $file e renomeia\"
+        git commit -m "Atualiza o arquivo $file e renomeia"
         ;;
       x)
         echo  OUT

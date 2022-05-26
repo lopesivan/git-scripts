@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+
+test -n "$DEBUG" && set -x
+
 #                      __ __       ___
 #                     /\ \\ \    /'___`\
 #                     \ \ \\ \  /\_\ /\ \
@@ -10,17 +13,17 @@
 #
 #
 #      Author: Ivan Lopes
-#        Mail: ivan (at) 42algoritmos (dot) com (dot) br
+#        Mail: ivan@42algoritmos.com.br
 #        Site: http://www.42algoritmos.com.br
 #     License: gpl
 #       Phone: +1 561 801 7985
 #    Language: Shell Script
-#        File: git.sh
-#        Date: Qua 22 Fev 2017 03:26:21 BRT
+#        File: mk-update-alternatives.sh
+#        Date: Qua 09 Mai 2018 20:27:28 -03
 # Description:
-#
 # ----------------------------------------------------------------------------
-#
+# Modo strict
+#set -euo pipefail
 # ----------------------------------------------------------------------------
 
 ##############################################################################
@@ -29,28 +32,44 @@
 
 # ----------------------------------------------------------------------------
 # Run!
+MAIN=info
+N=100
+LOCAL=$PWD
 
-for f in $@; do
-  # sleep 2
+files=(
+  ngmakeidx
+  ngmultidec
+  ngnutmeg
+  ngproc2mod
+  ngsconvert
+)
 
-  if [[ -f ${f}.txt ]]; then
-    n=1
-    while [[ -f ${f}_${n}.txt ]]
-    do
-      n=$((n+1))
-    done
-    filename="${f}_${n}.txt"
-  else
-    filename="${f}.txt"
-  fi
 
-  echo create : "$filename"
-  echo -e "`date`\narquivo: $filename" > $filename
-  command="git add $filename"
-  echo command: $command
-  $command
-  command="git commit -m $filename"
-  $command
+f=$MAIN
+
+# Se não existe aborte
+if test ! -e $LOCAL/$f
+then
+    echo `tput bold` `tput rev` Not Found: `tput setaf 3` "$f"  `tput sgr0`
+    echo `tput bold` `tput rev` Action: `tput setf 1` "Abort!"  `tput sgr0`
+    echo
+    exit 1
+fi
+echo -n sudo update-alternatives --install /usr/local/bin/$MAIN $MAIN $LOCAL/$MAIN $N
+
+for f in ${files[@]}; do
+
+    # Se não existe aborte
+    if test ! -e $LOCAL/$f
+    then
+	    echo `tput bold` `tput rev` Not Found: `tput setaf 3` "$f"  `tput sgr0`
+	    echo `tput bold` `tput rev` Action: `tput setf 1` "Abort!"  `tput sgr0`
+        echo
+        exit 1
+    fi
+
+    echo -n ' ' --slave /usr/local/bin/$f $f $LOCAL/$f
+
 done
 
 # ----------------------------------------------------------------------------

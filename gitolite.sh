@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+
+test -n "$DEBUG" && set -x
+
 #                      __ __       ___
 #                     /\ \\ \    /'___`\
 #                     \ \ \\ \  /\_\ /\ \
@@ -10,48 +13,52 @@
 #
 #
 #      Author: Ivan Lopes
-#        Mail: ivan (at) 42algoritmos (dot) com (dot) br
+#        Mail: ivan@42algoritmos.com.br
 #        Site: http://www.42algoritmos.com.br
 #     License: gpl
 #       Phone: +1 561 801 7985
 #    Language: Shell Script
-#        File: git.sh
-#        Date: Qua 22 Fev 2017 03:26:21 BRT
+#        File: ls-repo.sh
+#        Date: Seg 30 Abr 2018 23:39:49 -03
 # Description:
-#
 # ----------------------------------------------------------------------------
-#
+# Modo strict
+set -euo pipefail
 # ----------------------------------------------------------------------------
 
 ##############################################################################
 ##############################################################################
 ##############################################################################
-
 # ----------------------------------------------------------------------------
 # Run!
+run ()
+{
 
-for f in $@; do
-  # sleep 2
+local cmd=$(
+ssh gitolite.$1 info -p| awk '/ R W/ {print $3}' |
+  while read repo; do
+    echo git clone gitolite.$1:$repo
+  done|sort|
+  fzf-tmux -l 100% --multi --reverse --select-1 --exit-0
+)
+[[ -n "$cmd" ]] &&
+  eval "${cmd}"
+}
+# [[ -n "$cmd" ]] &&
+#   echo ${cmd}|
+#   tee >(xclip -i -selection clipboard)
+#   eval `xclip -selection clipboard -o`
+# }
 
-  if [[ -f ${f}.txt ]]; then
-    n=1
-    while [[ -f ${f}_${n}.txt ]]
-    do
-      n=$((n+1))
-    done
-    filename="${f}_${n}.txt"
-  else
-    filename="${f}.txt"
-  fi
-
-  echo create : "$filename"
-  echo -e "`date`\narquivo: $filename" > $filename
-  command="git add $filename"
-  echo command: $command
-  $command
-  command="git commit -m $filename"
-  $command
-done
+if [ $# -eq 1 ]; then
+  run $1
+else
+  echo USAGE: git ls-gitolite {user}
+  echo -n user values:
+  find ~/developer/gitolite-admin/keydir/ -type f -name \*.pub  -printf " %f\n"|
+    paste -s -d ',' |
+      sed 's/\.pub//g'
+fi
 
 # ----------------------------------------------------------------------------
 exit 0
