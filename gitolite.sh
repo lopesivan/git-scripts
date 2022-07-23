@@ -39,10 +39,10 @@ ssh gitolite.$1 info -p| awk '/ R W/ {print $3}' |
   while read repo; do
     echo git clone gitolite.$1:$repo
   done|sort|
-  fzf-tmux -l 100% --multi --reverse --select-1 --exit-0
+  fzf
 )
 [[ -n "$cmd" ]] &&
-  eval "${cmd}"
+  echo ${cmd}| tee >(xclip -i -selection clipboard)
 }
 # [[ -n "$cmd" ]] &&
 #   echo ${cmd}|
