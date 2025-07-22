@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+
+run() {
+    limit=${1:-100}
+    gh gist list --limit ${limit}
+    echo gh gist list --limit ${limit}
+}
+
+[ $1 ] && {
+    run $1
+} || {
+    echo 1>&2 Sintaxe: $0 number_of_requision
+}
+
+exit 0

@@ -1,0 +1,561 @@
+#!/usr/bin/env bash
+
+# Git Branch Explorer - Explorador interativo de branches com fzf
+# Autor: [Seu Nome]
+# Versão: 1.1
+# Uso: ./git-explorer.sh
+
+set -e
+
+# ========================================
+# CONFIGURAÇÕES
+# ========================================
+
+# Cores para output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
+PURPLE='\033[0;35m'
+CYAN='\033[0;36m'
+WHITE='\033[1;37m'
+NC='\033[0m' # No Color
+
+# Configurações do fzf
+FZF_DEFAULT_OPTS="--height=60% --layout=reverse --border --preview-window=right:60% --bind='ctrl-/:toggle-preview'"
+
+# Obter o caminho absoluto do script
+SCRIPT_PATH="$(realpath "${BASH_SOURCE[0]}")"
+export SCRIPT_PATH
+
+nvim=/home/linuxbrew/.linuxbrew/bin/nvim.sh
+
+# ========================================
+# FUNÇÕES AUXILIARES
+# ========================================
+
+print_header() {
+    echo -e "${BLUE}"
+    echo "┌─────────────────────────────────────────────────────────────┐"
+    echo "│                    GIT BRANCH EXPLORER                      │"
+    echo "│                 Explorador Interativo de Branches           │"
+    echo "└─────────────────────────────────────────────────────────────┘"
+    echo -e "${NC}"
+}
+
+print_error() {
+    echo -e "${RED}[ERRO]${NC} $1" >&2
+}
+
+print_success() {
+    echo -e "${GREEN}[OK]${NC} $1"
+}
+
+print_info() {
+    echo -e "${CYAN}[INFO]${NC} $1"
+}
+
+print_warning() {
+    echo -e "${YELLOW}[AVISO]${NC} $1"
+}
+
+check_dependencies() {
+    local missing_deps=()
+
+    if ! command -v git &>/dev/null; then
+        missing_deps+=("git")
+    fi
+
+    if ! command -v fzf &>/dev/null; then
+        missing_deps+=("fzf")
+    fi
+
+    if [ ${#missing_deps[@]} -ne 0 ]; then
+        print_error "Dependências não encontradas: ${missing_deps[*]}"
+        echo
+        echo "Para instalar:"
+        echo "  Ubuntu/Debian: sudo apt install git fzf"
+        echo "  Fedora: sudo dnf install git fzf"
+        echo "  macOS: brew install git fzf"
+        echo "  Arch: sudo pacman -S git fzf"
+        exit 1
+    fi
+}
+
+check_git_repo() {
+    if ! git rev-parse --git-dir &>/dev/null; then
+        print_error "Não está em um repositório Git!"
+        exit 1
+    fi
+}
+
+get_current_branch() {
+    git branch --show-current
+}
+
+get_repo_name() {
+    basename "$(git rev-parse --show-toplevel)"
+}
+
+# ========================================
+# FUNÇÕES DE PREVIEW (EXPORTADAS)
+# ========================================
+
+preview_branch_info() {
+    local branch=$1
+    local actual_branch=${branch#* }        # Remove "→ " ou "  "
+    actual_branch=${actual_branch% (atual)} # Remove " (atual)"
+
+    echo -e "${YELLOW}Branch: ${WHITE}$actual_branch${NC}"
+
+    # Determina se o branch existe localmente ou apenas remotamente
+    local branch_ref=""
+    local branch_status=""
+
+    if git show-ref --verify --quiet "refs/heads/$actual_branch" 2>/dev/null; then
+        branch_ref="$actual_branch"
+        branch_status="(local)"
+    elif git show-ref --verify --quiet "refs/remotes/origin/$actual_branch" 2>/dev/null; then
+        branch_ref="origin/$actual_branch"
+        branch_status="(apenas remoto)"
+    else
+        echo "─────────────────────────────────────"
+        echo "Branch não encontrado localmente ou remotamente"
+        return
+    fi
+
+    echo -e "${PURPLE}Status: ${WHITE}$branch_status${NC}"
+    echo "─────────────────────────────────────"
+
+    # Informações do último commit
+    echo -e "${CYAN}Último commit:${NC}"
+    git log "$branch_ref" --oneline -n 1 2>/dev/null || echo "Erro ao obter commit"
+
+    echo
+    echo -e "${CYAN}Autor:${NC}"
+    git log "$branch_ref" --pretty=format:"%an <%ae>" -n 1 2>/dev/null || echo "Erro ao obter autor"
+
+    echo
+    echo
+    echo -e "${CYAN}Data:${NC}"
+    git log "$branch_ref" --pretty=format:"%ar (%ad)" --date=short -n 1 2>/dev/null || echo "Erro ao obter data"
+
+    # Quantidade de commits à frente/atrás do main/master
+    echo
+    echo -e "${CYAN}Comparação com main/master:${NC}"
+    local main_branch=""
+    if git show-ref --verify --quiet "refs/heads/main" 2>/dev/null ||
+        git show-ref --verify --quiet "refs/remotes/origin/main" 2>/dev/null; then
+        main_branch="main"
+    elif git show-ref --verify --quiet "refs/heads/master" 2>/dev/null ||
+        git show-ref --verify --quiet "refs/remotes/origin/master" 2>/dev/null; then
+        main_branch="master"
+    fi
+
+    if [[ -n "$main_branch" && "$actual_branch" != "$main_branch" ]]; then
+        local main_ref="$main_branch"
+        if ! git show-ref --verify --quiet "refs/heads/$main_branch" 2>/dev/null; then
+            main_ref="origin/$main_branch"
+        fi
+
+        local ahead=$(git rev-list --count "$main_ref..$branch_ref" 2>/dev/null || echo "0")
+        local behind=$(git rev-list --count "$branch_ref..$main_ref" 2>/dev/null || echo "0")
+
+        if [[ "$ahead" -gt 0 ]] || [[ "$behind" -gt 0 ]]; then
+            echo "$ahead commits à frente, $behind commits atrás de $main_branch"
+        else
+            echo "Sincronizado com $main_branch"
+        fi
+    else
+        echo "Branch principal ou comparação não disponível"
+    fi
+
+    # Arquivos modificados
+    echo
+    echo -e "${CYAN}Arquivos (últimas 10 modificações):${NC}"
+    git diff-tree --no-commit-id --name-only -r "$branch_ref" 2>/dev/null | head -10 ||
+        echo "Não foi possível listar arquivos modificados"
+}
+
+preview_file_content() {
+    local branch=$1
+    local file=$2
+    local actual_branch=${branch#* }
+    actual_branch=${actual_branch% (atual)}
+
+    echo -e "${YELLOW}Branch: ${WHITE}$actual_branch${NC}"
+    echo -e "${YELLOW}Arquivo: ${WHITE}$file${NC}"
+    echo "─────────────────────────────────────"
+    echo
+
+    # Determina se deve usar branch local ou remoto
+    local ref="$actual_branch"
+    if ! git show-ref --verify --quiet "refs/heads/$actual_branch" 2>/dev/null; then
+        if git show-ref --verify --quiet "refs/remotes/origin/$actual_branch" 2>/dev/null; then
+            ref="origin/$actual_branch"
+        fi
+    fi
+
+    # Verifica se o arquivo existe
+    if ! git cat-file -e "$ref:$file" 2>/dev/null; then
+        echo "Não foi possível acessar o arquivo"
+        return
+    fi
+
+    # Verifica tamanho do arquivo
+    local file_size=$(git cat-file -s "$ref:$file" 2>/dev/null || echo 0)
+    if [[ $file_size -gt 500000 ]]; then
+        echo "Arquivo muito grande ($file_size bytes) - Preview limitado"
+        git show "$ref:$file" | head -50
+        return
+    fi
+
+    # Sistema de preview com múltiplas opções (em ordem de preferência)
+
+    # 1. Neovim (melhor syntax highlighting)
+    if command -v nvim &>/dev/null; then
+        # Cria arquivo temporário
+        local temp_file=$(mktemp --suffix=".${file##*.}")
+        git show "$ref:$file" >"$temp_file" 2>/dev/null
+
+        # Preview com nvim em modo não-interativo
+        $nvim --headless \
+            -c "set number relativenumber" \
+            -c "set syntax=on" \
+            -c "set background=dark" \
+            -c "colorscheme default" \
+            -c "%print" \
+            -c "quit!" \
+            "$temp_file" 2>/dev/null | head -100
+
+        # Limpa arquivo temporário
+        rm -f "$temp_file" 2>/dev/null
+
+    # 2. Bat (ótimo syntax highlighting e numeração)
+    elif command -v bat &>/dev/null; then
+        git show "$ref:$file" | bat \
+            --style=numbers,header-filename \
+            --color=always \
+            --line-range=:100 \
+            --file-name="$file" \
+            2>/dev/null
+
+    # 3. Pygmentize (syntax highlighting colorido)
+    elif command -v pygmentize &>/dev/null; then
+        git show "$ref:$file" | pygmentize -g -O style=colorful 2>/dev/null | head -100
+
+    # 4. Highlight (alternativa para syntax highlighting)
+    elif command -v highlight &>/dev/null; then
+        git show "$ref:$file" | highlight \
+            --out-format=ansi \
+            --line-numbers \
+            --style=github \
+            --syntax="${file##*.}" 2>/dev/null | head -100
+
+    # 5. Micro editor (preview mode)
+    elif command -v micro &>/dev/null; then
+        local temp_file=$(mktemp --suffix=".${file##*.}")
+        git show "$ref:$file" >"$temp_file" 2>/dev/null
+        micro -printhelp=false -colorscheme=default "$temp_file" 2>/dev/null | head -100
+        rm -f "$temp_file" 2>/dev/null
+
+    # 6. Fallback simples com numeração
+    else
+        local extension="${file##*.}"
+        echo -e "${CYAN}[Preview básico - instale bat, nvim, ou pygmentize para melhor experiência]${NC}"
+        echo
+
+        case $extension in
+            py | js | ts | jsx | tsx | sh | bash | zsh | fish | php | rb | go | rs | java | c | cpp | h | hpp)
+                git show "$ref:$file" | nl -ba | head -100 | sed 's/^/│ /'
+                ;;
+            json | xml | yaml | yml | toml | ini | cfg | conf)
+                git show "$ref:$file" | nl -ba | head -100 | sed 's/^/│ /'
+                ;;
+            md | markdown | txt | rst | org)
+                git show "$ref:$file" | head -100 | sed 's/^/│ /'
+                ;;
+            *)
+                git show "$ref:$file" | head -100 | sed 's/^/│ /'
+                ;;
+        esac
+    fi
+}
+
+# Exportar as funções para subshells
+export -f preview_branch_info
+export -f preview_file_content
+
+# ========================================
+# FUNÇÕES PRINCIPAIS
+# ========================================
+
+list_branches() {
+    local current_branch=$(get_current_branch)
+
+    # Primeiro, busca atualizações dos remotes
+    print_info "Buscando atualizações dos branches remotos..." >&2
+    git fetch --all --quiet 2>/dev/null || true
+
+    # Coletar todos os branches (locais e remotos)
+    {
+        # Branches locais
+        git branch --format="%(refname:short)|local|%(committerdate)" 2>/dev/null || true
+
+        # Branches remotos
+        git branch -r --format="%(refname:short)|remote|%(committerdate)" 2>/dev/null |
+            grep -v "HEAD" || true
+    } | while IFS='|' read -r branch type date; do
+        # Limpa o nome do branch removendo origin/
+        clean_branch=${branch#origin/}
+
+        # Marca o branch atual
+        if [[ "$clean_branch" == "$current_branch" ]]; then
+            echo "→ $clean_branch (atual)|$type|$date"
+        else
+            echo "  $clean_branch|$type|$date"
+        fi
+    done |
+        # Remove duplicatas mantendo a prioridade: atual > local > remote
+        sort -t'|' -k1,1 -k2,2r |
+        awk -F'|' '!seen[$1]++ {print $1}' |
+        # Ordena por data de commit (mais recentes primeiro)
+        while read branch_line; do
+            branch_name=${branch_line#* }
+            branch_name=${branch_name% (atual)}
+
+            # Pega a data do último commit para ordenação
+            commit_date=$(git log --format="%ct" -n 1 "$branch_name" 2>/dev/null ||
+                git log --format="%ct" -n 1 "origin/$branch_name" 2>/dev/null ||
+                echo "0")
+            echo "$commit_date|$branch_line"
+        done | sort -t'|' -k1,1nr | cut -d'|' -f2-
+}
+
+list_files_in_branch() {
+    local branch=$1
+    local actual_branch=${branch#* }
+    actual_branch=${actual_branch% (atual)}
+
+    # Determina a referência correta do branch
+    local branch_ref=""
+    if git show-ref --verify --quiet "refs/heads/$actual_branch" 2>/dev/null; then
+        branch_ref="$actual_branch"
+    elif git show-ref --verify --quiet "refs/remotes/origin/$actual_branch" 2>/dev/null; then
+        branch_ref="origin/$actual_branch"
+    else
+        print_error "Branch '$actual_branch' não encontrado localmente ou remotamente"
+        return 1
+    fi
+
+    # Lista todos os arquivos do branch
+    git ls-tree -r --name-only "$branch_ref" | sort
+}
+
+show_file_content() {
+    local branch=$1
+    local file=$2
+    local actual_branch=${branch#* }
+    actual_branch=${actual_branch% (atual)}
+
+    local ref="$actual_branch"
+    if ! git show-ref --verify --quiet "refs/heads/$actual_branch" 2>/dev/null; then
+        if git show-ref --verify --quiet "refs/remotes/origin/$actual_branch" 2>/dev/null; then
+            ref="origin/$actual_branch"
+        fi
+    fi
+
+    clear
+    print_info "Conteúdo do arquivo: $file (branch: $actual_branch)"
+    echo
+
+    if git cat-file -e "$ref:$file" 2>/dev/null; then
+        # Pergunta ao usuário como quer visualizar o arquivo
+        echo -e "${CYAN}Como deseja visualizar o arquivo?${NC}"
+        echo "1) Neovim (editor completo)"
+        echo "2) Pygmentize (colorido)"
+        echo "3) Cat simples com numeração"
+        echo "4) Voltar"
+        echo
+        read -p "Escolha (1-4): " choice
+
+        case $choice in
+            1)
+                if command -v nvim &>/dev/null; then
+                    # Cria arquivo temporário
+                    local temp_file=$(mktemp --suffix=".${file##*.}")
+                    git show "$ref:$file" >"$temp_file"
+
+                    # Verifica se o conteúdo é texto
+                    if file --mime "$temp_file" | grep -q 'charset=binary'; then
+                        print_warning "Arquivo binário detectado. Preview indisponível."
+                        sleep 2
+                        rm -f "$temp_file"
+                        return
+                    fi
+
+                    echo -e "${GREEN}Abrindo com Neovim...${NC}"
+                    echo -e "${YELLOW}Modo somente leitura - :q para sair${NC}"
+                    sleep 1
+
+                    # Abre no nvim em modo readonly
+                    $nvim -R \
+                        -c "set number relativenumber" \
+                        -c "set syntax=on" \
+                        -c "set background=dark" \
+                        -c "set nowrap" \
+                        -c "echo 'Arquivo: $file | Branch: $actual_branch | :q para sair'" \
+                        "$temp_file"
+
+                    rm -f "$temp_file"
+                else
+                    print_error "Neovim não está instalado!"
+                fi
+                ;;
+            2)
+                if command -v pygmentize &>/dev/null; then
+                    git show "$ref:$file" | pygmentize -g -O style=colorful | less -R
+                else
+                    print_error "Pygmentize não está instalado!"
+                    git show "$ref:$file" | less
+                fi
+                ;;
+            3)
+                git show "$ref:$file" | nl -ba | less
+                ;;
+            4)
+                return
+                ;;
+            *)
+                print_warning "Opção inválida, usando visualização padrão..."
+                git show "$ref:$file" | less
+                ;;
+        esac
+    else
+        print_error "Não foi possível acessar o arquivo $file no branch $actual_branch"
+    fi
+
+    echo
+    read -p "Pressione ENTER para continuar..."
+}
+
+# ========================================
+# MENU PRINCIPAL
+# ========================================
+
+select_branch() {
+    echo -e "${CYAN}Selecione um branch para explorar:${NC}"
+    echo -e "${YELLOW}(Buscando atualizações dos repositórios remotos...)${NC}"
+    echo
+
+    local selected_branch
+    selected_branch=$(list_branches | fzf \
+        --prompt="Branch> " \
+        --header="↑↓: navegar │ Enter: explorar │ Ctrl+C: sair │ Ctrl+/: toggle preview" \
+        --preview="preview_branch_info {}" \
+        --preview-label="┃ Informações do Branch ┃")
+
+    if [[ -n "$selected_branch" ]]; then
+        explore_branch_files "$selected_branch"
+    fi
+}
+
+explore_branch_files() {
+    local branch=$1
+    local actual_branch=${branch#* }
+    actual_branch=${actual_branch% (atual)}
+
+    # Verifica se o branch existe e informa o status
+    local branch_ref=""
+    local status_msg=""
+
+    if git show-ref --verify --quiet "refs/heads/$actual_branch" 2>/dev/null; then
+        branch_ref="$actual_branch"
+        status_msg="(branch local)"
+    elif git show-ref --verify --quiet "refs/remotes/origin/$actual_branch" 2>/dev/null; then
+        branch_ref="origin/$actual_branch"
+        status_msg="(branch remoto - não baixado localmente)"
+    else
+        print_error "Branch '$actual_branch' não encontrado!"
+        return 1
+    fi
+
+    while true; do
+        echo -e "${CYAN}Explorando arquivos do branch: ${WHITE}$actual_branch${NC} ${PURPLE}$status_msg${NC}"
+        echo
+
+        local selected_file
+        selected_file=$(list_files_in_branch "$branch" | fzf \
+            --prompt="Arquivo> " \
+            --header="↑↓: navegar │ Enter: visualizar │ ESC: voltar │ Ctrl+/: toggle preview" \
+            --preview="preview_file_content '$branch' {}" \
+            --preview-label="┃ Preview do Arquivo ┃") || break
+
+        if [[ -n "$selected_file" ]]; then
+            show_file_content "$branch" "$selected_file"
+        fi
+    done
+}
+
+# ========================================
+# FUNÇÃO PRINCIPAL
+# ========================================
+
+main() {
+    # Verificações iniciais
+    check_dependencies
+    check_git_repo
+
+    # Header
+    clear
+    print_header
+
+    # Informações do repositório
+    local current_branch=$(get_current_branch)
+    local repo_name=$(get_repo_name)
+
+    print_info "Repositório: $repo_name"
+    print_info "Branch atual: $current_branch"
+    print_warning "Você permanecerá no branch atual durante toda a exploração"
+    echo
+
+    # Loop principal
+    while true; do
+        select_branch
+
+        echo
+        echo -e "${YELLOW}Deseja explorar outro branch? (y/N)${NC}"
+        read -n 1 -r response
+        echo
+
+        if [[ ! "$response" =~ ^[Yy]$ ]]; then
+            break
+        fi
+
+        clear
+        print_header
+        print_info "Repositório: $repo_name"
+        print_info "Branch atual: $current_branch"
+        echo
+    done
+
+    print_success "Obrigado por usar o Git Branch Explorer!"
+}
+
+# ========================================
+# EXECUÇÃO
+# ========================================
+
+# Se chamado como preview function via argumentos
+if [[ "$1" == "preview_branch_info" ]]; then
+    preview_branch_info "$2"
+    exit 0
+elif [[ "$1" == "preview_file_content" ]]; then
+    preview_file_content "$2" "$3"
+    exit 0
+fi
+
+# Permite que as funções sejam importadas quando sourced
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    main "$@"
+fi

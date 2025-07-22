@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+
+run() {
+    gh gist view ${1}
+}
+
+[ $1 ] && {
+    run $1
+} || {
+    echo 1>&2 Sintaxe: $0 ID
+}
+
+exit 0

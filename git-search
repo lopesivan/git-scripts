@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+
+run() {
+    gh repo list lopesivan \
+        --limit ${2:-100} \
+        --json name \
+        --jq ".[] | select(.name | startswith(\"${1}\")) | .name"
+}
+
+[ $1 ] && {
+    run $1 $2
+} || {
+    echo 1>&2 Sintaxe: $0 pattern
+}
+
+exit 0
