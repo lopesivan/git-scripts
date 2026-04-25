@@ -2,136 +2,205 @@
 
 test -n "$DEBUG" && set -x
 
-#                      __ __       ___
-#                     /\ \\ \    /'___`\
-#                     \ \ \\ \  /\_\ /\ \
-#                      \ \ \\ \_\/_/// /__
-#                       \ \__ ,__\ // /_\ \
-#                        \/_/\_\_//\______/
-#                           \/_/  \/_____/
-#                                         Algoritimos
-#
-#
-#      Author: Ivan Lopes
-#        Mail: ivan (at) 42algoritmos (dot) com (dot) br
-#        Site: http://www.42algoritmos.com.br
-#     License: gpl
-#       Phone: +1 561 801 7985
-#    Language: Shell Script
-#        File: a.sh
-#        Date: Dom 19 Mar 2017 08:09:51 BRT
-# Description:
-# ----------------------------------------------------------------------------
-# Modo strict
 set -euo pipefail
-# ----------------------------------------------------------------------------
 
-##############################################################################
-##############################################################################
-##############################################################################
+# ============================================================================
+# Visuais
+# ============================================================================
+
 BOLD=$(tput bold)
 RESET=$(tput sgr0)
 
-    CHEKED='\e[1;49;92m[✓]\t\e[0m'
-    STAGED='\e[1;49;36mStaged\e[0m'
- UNTRACKED='\e[48;5;160mUntracked\e[0m'
- UNTRACKED='\e[7;41;90mUntracked\e[0m'
-UNMODIFIED='\e[1;49;92mUnmodified\e[0m'
-  MODIFIED='\e[1;49;33mModified\e[0m'
-   DELETED='\e[1;44;36mDeleted from project\e[0m'
-   REMOVED='\e[1;39;106mRemoved\e[0m'
-        LR='\e[38;5;33mLocal Repository\e[0m'
-        WD='\e[1;39;1mWorking directory\e[0m'
-# ----------------------------------------------------------------------------
+CHEKED='\e[1;49;92m[✓]\e[0m'
+STAGED='\e[1;49;36mStaged\e[0m'
+UNTRACKED='\e[7;41;90mUntracked\e[0m'
+MODIFIED='\e[1;49;33mModified\e[0m'
+DELETED='\e[1;44;36mDeleted\e[0m'
+LR='\e[38;5;33mLocal Repository\e[0m'
+WD='\e[1;39;1mWorking directory\e[0m'
 
-add_manager () {
-  git status --porcelain |
-  sed -r \
-    -e 's/\s/@/g' \
-    -e 's/@\->@/ ➜ /g' \
-    -e 's/(^..)(.*)/\1;\2/' |
-  while IFS=';' read state file; do
+# ============================================================================
+# Helpers
+# ============================================================================
 
-    file=${file#@}
-    case x${state} in
-      x\?\?)
-        echo File:\`$BOLD${file}$RESET\'
-        echo -e $UNTRACKED \> $STAGED
-        echo \$ git add $file
-        git add $file
-        ;;
-      xA@)
-        echo File:\`$BOLD${file}$RESET\'
-        echo -e $STAGED \> $LR
-        echo \$ git commit -m \"Adiciona o arquivo $file\"
-        git commit -m "Adiciona o arquivo $file"
-        ;;
-      xAM)
-        echo File:\`$BOLD${file}$RESET\'
-        echo -e $STAGED \> $LR
-        echo \$ git commit -m \"Primeira revisão do arquivo $file\"
-        git commit -m "Primeira revisão do arquivo $file"
-        ;;
-      x@M)
-        echo File:\`$BOLD${file}$RESET\'
-        echo -e $WD \> $STAGED
-        echo \$ git add $file
-        git add $file
-        ;;
-      xM@)
-        echo File:\`$BOLD${file}$RESET\'
-        echo -e $STAGED \> $LR
-        echo \$ git commit -m \"Atualiza o arquivo $file\"
-        git commit -m "Atualiza o arquivo $file"
-        ;;
-      x@D)
-        echo File:\`$BOLD${file}$RESET\'
-        echo -e $WD \> $STAGED
-        echo \$ git add $file
-        git add $file
-        ;;
-      xD@)
-        echo File:\`$BOLD${file}$RESET\'
-        echo -e $STAGED \> $DELETED
-        echo \$ git commit -m \"Remove o arquivo $file\"
-        git commit -m "Remove o arquivo $file"
-        ;;
-      x@R)
-        echo File:\`$BOLD${file}$RESET\'
-        echo -e $WD \> $STAGED
-        echo \$ git add $file
-        git add $file
-        ;;
-      xR@)
-        echo File:\`$BOLD${file}$RESET\'
-        echo -e $STAGED \> $LR
-        echo \$ git commit -m \"Renomeia o arquivo $file\"
-        git commit -m "Renomeia o arquivo $file"
-        ;;
-      xRM)
-        echo File:\`$BOLD${file}$RESET\'
-        echo -e $STAGED \> $LR
-        echo \$ git commit -m \"Atualiza o arquivo $file e renomeia\"
-        git commit -m "Atualiza o arquivo $file e renomeia"
-        ;;
-      x)
-        echo  OUT
-        ;;
-    esac
-
-  done
+# Imprime separador visual entre arquivos
+separator() {
+    echo -e "\e[2m───────────────────────────────────────\e[0m"
 }
 
-# Run!
-if ! [[ `git status --porcelain` ]]; then
-  #no changes
-  git status --short --branch
-  false
-else
-  # changes
-    add_manager
-  true
-fi
+# Wrapper do devmoji: usa se disponível, senão passa a mensagem direto
+devmoji_pipe() {
+    if command -v devmoji >/dev/null 2>&1; then
+        devmoji
+    else
+        cat
+    fi
+}
 
-# ----------------------------------------------------------------------------
-exit 0
+# Executa um commit com mensagem formatada via devmoji
+do_commit() {
+    local msg="$1"
+    local formatted
+    formatted=$(echo "$msg" | devmoji_pipe)
+    echo "$ git commit -m \"$formatted\""
+    git commit -m "$formatted"
+    echo -e "$CHEKED committed: $BOLD$formatted$RESET"
+}
+
+# Garante que o arquivo está no índice antes de commitar
+stage_if_needed() {
+    local file="$1"
+    git add "$file"
+}
+
+# ============================================================================
+# Core
+# ============================================================================
+
+add_manager() {
+    # Captura o status porcelain numa variável para evitar subshell que
+    # quebraria o set -e em pipes aninhados
+    local status_output
+    status_output=$(git status --porcelain)
+
+    while IFS= read -r line; do
+        # Extrai os dois caracteres de estado e o nome do arquivo
+        local xy="${line:0:2}"
+        local file="${line:3}"
+
+        # Trata renames: "oldname -> newname" → pega só o destino
+        if [[ "$file" == *" -> "* ]]; then
+            file="${file##* -> }"
+        fi
+
+        # Remove aspas que o git adiciona em nomes com espaços/especiais
+        file="${file//\"/}"
+
+        separator
+        echo -e "Arquivo: $BOLD$file$RESET  estado: [$xy]"
+
+        case "x${xy}" in
+
+            # ── Untracked ────────────────────────────────────────────────────
+            'x??')
+                echo -e "$UNTRACKED → $STAGED"
+                echo -e "Arquivo novo, não rastreado pelo Git."
+                stage_if_needed "$file"
+                do_commit ":add: Adiciona $file"
+                ;;
+
+            # ── Added to index ───────────────────────────────────────────────
+            'xA ')
+                echo -e "$STAGED → $LR"
+                echo -e "Arquivo adicionado ao índice."
+                do_commit ":add: Adiciona $file"
+                ;;
+
+            # ── Added + Modified locally ──────────────────────────────────────
+            'xAM')
+                echo -e "$STAGED → $LR"
+                echo -e "Adicionado ao índice e depois modificado localmente."
+                stage_if_needed "$file"
+                do_commit ":fix: Primeira revisão de $file"
+                ;;
+
+            # ── Modified in index (staged) ────────────────────────────────────
+            'xM ')
+                echo -e "$STAGED → $LR"
+                echo -e "Modificado e adicionado ao índice."
+                do_commit ":refactor: Refatora $file"
+                ;;
+
+            # ── Modified in working dir (not staged) ──────────────────────────
+            'x M')
+                echo -e "$WD → $STAGED"
+                echo -e "Modificado no diretório de trabalho, ainda não no índice."
+                stage_if_needed "$file"
+                do_commit ":style: Atualiza $file"
+                ;;
+
+            # ── Modified both index and working dir ───────────────────────────
+            'xMM')
+                echo -e "$WD → $STAGED → $LR"
+                echo -e "Modificado no índice E no diretório de trabalho."
+                stage_if_needed "$file"
+                do_commit ":refactor: Revisão completa de $file"
+                ;;
+
+            # ── Deleted from index (staged) ───────────────────────────────────
+            'xD ')
+                echo -e "$STAGED → $DELETED"
+                echo -e "Removido do índice."
+                do_commit ":remove: Remove $file"
+                ;;
+
+            # ── Deleted from working dir (not staged) ─────────────────────────
+            'x D')
+                echo -e "$WD → $STAGED"
+                echo -e "Removido do diretório de trabalho, ainda no índice."
+                stage_if_needed "$file"
+                do_commit ":warning: $file removido localmente"
+                ;;
+
+            # ── Added then Deleted ────────────────────────────────────────────
+            'xAD')
+                echo -e "$STAGED → $DELETED"
+                echo -e "Adicionado ao índice e depois removido do diretório."
+                echo "$ git rm --cached \"$file\""
+                git rm --cached "$file"
+                do_commit ":remove: Remove $file antes de confirmar"
+                ;;
+
+            # ── Renamed (staged) ──────────────────────────────────────────────
+            'xR ')
+                echo -e "$STAGED → $LR"
+                echo -e "Renomeado no índice."
+                do_commit ":rename: Renomeia para $file"
+                ;;
+
+            # ── Renamed + Modified ────────────────────────────────────────────
+            'xRM')
+                echo -e "$STAGED → $LR"
+                echo -e "Renomeado e modificado localmente."
+                stage_if_needed "$file"
+                do_commit ":refactor: Renomeia e modifica $file"
+                ;;
+
+            # ── Copied (staged) ───────────────────────────────────────────────
+            'xC ')
+                echo -e "$STAGED → $LR"
+                echo -e "Copiado e adicionado ao índice."
+                do_commit ":add: Copia $file"
+                ;;
+
+            # ── Conflitos ─────────────────────────────────────────────────────
+            'xUU'|'xAA'|'xDD'|'xDU'|'xUD'|'xUA'|'xAU')
+                echo -e "\e[1;31m❗ Conflito detectado!\e[0m"
+                echo -e "Estado: [$xy] — resolva manualmente e use 'git add $file'"
+                echo -e "\e[2mDica: git diff $file\e[0m"
+                # Não aborta — continua processando os outros arquivos
+                ;;
+
+            # ── Catch-all ─────────────────────────────────────────────────────
+            *)
+                echo -e "\e[1;33m⚠️  Estado não tratado: [$xy]\e[0m"
+                echo -e "Verifique manualmente: git status $file"
+                ;;
+        esac
+
+    done <<< "$status_output"
+
+    separator
+}
+
+# ============================================================================
+# Entry point
+# ============================================================================
+
+if [[ -z "$(git status --porcelain)" ]]; then
+    git status --short --branch
+    exit 1
+else
+    add_manager
+    exit 0
+fi
