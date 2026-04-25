@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+API_REGISTRY="https://dev:5000"
+PULL_REGISTRY="registry.local:5000"
+
+# Seleciona o repositório
+repo=$(
+    curl -sk "${API_REGISTRY}/v2/_catalog" |
+        jq -r '.repositories[]' |
+        fzf --prompt='repo > '
+)
+
+[[ -z "${repo:-}" ]] && exit 0
+
+# Busca tags
+tags_json=$(curl -sk "${API_REGISTRY}/v2/${repo}/tags/list")
+
+# Extrai tags
+mapfile -t tags < <(jq -r '.tags[]?' <<<"$tags_json")
+
+if ((${#tags[@]} == 0)); then
+    echo "nenhuma tag encontrada para ${repo}" >&2
+    exit 1
+fi
+
+# Seleciona a tag
+tag=$(printf '%s\n' "${tags[@]}" | fzf --prompt='tag > ')
+
+[[ -z "${tag:-}" ]] && exit 0
+
+# Monta o comando final
+pull_cmd="docker pull ${PULL_REGISTRY}/${repo}:${tag}"
+
+# Imprime
+echo "$pull_cmd"
+
+# Copia pro clipboard, se possível
+if command -v xclip >/dev/null 2>&1; then
+    printf "sudo %s" "$pull_cmd" | xclip -selection clipboard
+    echo "(copiado para a área de transferência)"
+fi
+
+exit 0
