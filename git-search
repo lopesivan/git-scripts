@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 run() {
-    gh repo list lopesivan \
+    gh repo list $(awk '/user/ {print $3}' /home/ivan/.config/hub) \
         --limit ${2:-100} \
         --json name \
         --jq ".[] | select(.name | startswith(\"${1}\")) | .name"
@@ -14,3 +14,4 @@ run() {
 }
 
 exit 0
+
