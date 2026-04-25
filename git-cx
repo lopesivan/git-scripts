@@ -1,0 +1,128 @@
+#!/usr/bin/env bash
+test -n "$DEBUG" && set -x
+
+# ----------------------------------------------------------------------------
+# fbr - Interactively checkout git branches (local, remote, feature, or reflog HEADs)
+# fbr – Interativamente:
+#   -f  branches de feature
+#   -r  branches remotos
+#   -l  entradas do reflog
+#   -w  diretórios de worktree
+# ----------------------------------------------------------------------------
+
+fbr() {
+    local branches branch
+    local state="local"
+    local fzf_prompt="Selecione um branch"
+    local fzf_header=""
+    
+    case "$1" in
+        -f)
+            branches=$(git branch --list '*feature*')
+            fzf_prompt="🌟 Feature Branches"
+            fzf_header="Selecione um feature branch para checkout"
+            ;;
+        -r)
+            branches=$(git branch -r)
+            state="remote"
+            fzf_prompt="🌐 Remote Branches"
+            fzf_header="Selecione um branch remoto para checkout"
+            ;;
+        -l)
+            branches=$(git reflog --pretty='%gD %gs' |
+                sed 's/^HEAD@{[0-9]*}/HEAD@{&}/')
+            state="reflog"
+            fzf_prompt="🔄 Reflog Entries"
+            fzf_header="Selecione uma entrada do reflog para checkout"
+            ;;
+        -w)
+            # --porcelain facilita o parse: cada bloco começa com "worktree <path>"
+            branches=$(git worktree list --porcelain |
+                awk '/^worktree /{print $2}')
+            state="worktree"
+            fzf_prompt="📁 Worktree Directories"
+            fzf_header="Selecione um diretório de worktree para navegar"
+            ;;
+        *)
+            branches=$(git branch)
+            fzf_prompt="📋 Local Branches"
+            fzf_header="Selecione um branch local para checkout"
+            ;;
+    esac
+    
+    # Verificar se encontrou algum resultado
+    [ -z "$branches" ] && echo "❌ Nada encontrado." && return 1
+    
+    # Usar fzf com configurações visuais melhoradas
+    branch=$(echo "$branches" | fzf \
+        --prompt="$fzf_prompt > " \
+        --header="$fzf_header" \
+        --height=60% \
+        --border=rounded \
+        --margin=1 \
+        --padding=1 \
+        --color="fg:#f8f8f2,bg:#282a36,hl:#bd93f9" \
+        --color="fg+:#f8f8f2,bg+:#44475a,hl+:#bd93f9" \
+        --color="info:#ffb86c,prompt:#50fa7b,pointer:#ff79c6" \
+        --color="marker:#ff79c6,spinner:#ffb86c,header:#6272a4" \
+        --preview-window=right:50% \
+        --preview="echo '📋 Branch: {}' && echo '' && git log --oneline --graph --color=always -10 {} 2>/dev/null || echo 'Preview indisponível'" \
+        --bind="ctrl-/:toggle-preview" \
+        --bind="ctrl-u:preview-page-up" \
+        --bind="ctrl-d:preview-page-down" \
+        --no-mouse)
+    
+    # Verificar se usuário fez uma seleção
+    [ -z "$branch" ] && echo "❌ Nenhuma seleção." && return 1
+    
+    # Executar ação baseada no estado
+    case "$state" in
+        remote)
+            echo "🌐 Fazendo checkout do branch remoto: ${branch##* }"
+            git checkout -t "${branch##* }"
+            ;;
+        reflog)
+            headref=$(echo "$branch" | grep -o 'HEAD@{[0-9]*}')
+            echo "🔄 Fazendo checkout da entrada do reflog: $headref"
+            git checkout "$headref"
+            ;;
+        worktree)
+            echo "📁 Navegando para o worktree: $branch"
+            cd "$branch" || {
+                echo "❌ Falha ao entrar em '$branch'."
+                return 1
+            }
+            echo "✅ Agora em: $(pwd)"
+            exec "$SHELL" # opcional; mantém prompt consistente pós-cd
+            ;;
+        *)
+            echo "📋 Fazendo checkout do branch: ${branch##* }"
+            git checkout "${branch##* }"
+            ;;
+    esac
+}
+
+# ----------------------------------------------------------------------------
+# Verificar se está em um repositório Git
+# ----------------------------------------------------------------------------
+if ! git rev-parse --git-dir > /dev/null 2>&1; then
+    echo "❌ Erro: Este diretório não é um repositório Git."
+    exit 1
+fi
+
+# ----------------------------------------------------------------------------
+# Verificar se fzf está instalado
+# ----------------------------------------------------------------------------
+if ! command -v fzf > /dev/null 2>&1; then
+    echo "❌ Erro: fzf não está instalado."
+    echo "💡 Instale com: sudo apt install fzf  # Ubuntu/Debian"
+    echo "💡 Ou visite: https://github.com/junegunn/fzf"
+    exit 1
+fi
+
+# ----------------------------------------------------------------------------
+# Executar função principal
+# ----------------------------------------------------------------------------
+fbr "$1"
+
+exit 0
