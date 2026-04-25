@@ -33,41 +33,74 @@ test -n "$DEBUG" && set -x
 # ----------------------------------------------------------------------------
 # Run!
 
-# fbr - checkout git branch
+# fbr - Interactively checkout git branches (local, remote, feature, or reflog HEADs)
+# fbr – Interativamente:
+#   -f  branches de feature
+#   -r  branches remotos
+#   -l  entradas do reflog
+#   -w  diretórios de worktree  ← NOVO
 fbr() {
-  #echo cd $PWD| dmenu -i -l 52 -fn 'Droid Sans Mono-31' -nf yellow -nb black -sf black -sb white
-  #return 1
-  local branches branch
-  local state=normal
+    local branches branch
+    local state="local"
 
-  branches=$(git branch)
+    case "$1" in
+        -f)
+            branches=$(git branch --list '*feature*')
+            ;;
+        -r)
+            branches=$(git branch -r)
+            state="remote"
+            ;;
+        -l)
+            branches=$(git reflog --pretty='%gD %gs' |
+                sed 's/^HEAD@{[0-9]*}/HEAD@{&}/')
+            state="reflog"
+            ;;
+        -w)
+            # --porcelain facilita o parse: cada bloco começa com "worktree <path>"
+            branches=$(git worktree list --porcelain |
+                awk '/^worktree /{print $2}')
+            state="worktree"
+            ;;
+        *)
+            branches=$(git branch)
+            ;;
+    esac
 
-  if [ "$1" = "-f" ]; then
-    branches=$(git branch| grep feature)
-  fi
+    [ -z "$branches" ] && echo "Nada encontrado." && return 1
 
-  if [ "$1" = "-r" ]; then
-    branches=$(git branch -r)
-    state=remote
-  fi
+    branch=$(echo "$branches" | dmenu -i \
+        -l 52 \
+        -fn 'Droid Sans Mono-25' \
+        -nf yellow \
+        -nb black \
+        -sf black \
+        -sb white)
 
-  branch=$(echo "$branches" |
-    dmenu -i \
-          -l 52 \
-          -fn 'Droid Sans Mono-31' \
-          -nf yellow \
-          -nb black \
-          -sf black \
-          -sb white)
+    [ -z "$branch" ] && echo "Nenhuma seleção." && return 1
 
-  if [[ "remote" == "$state" ]]; then
-    git checkout -t $branch
-    # git switch $branch
-  else
-    git checkout $branch
-  fi
+    case "$state" in
+        remote)
+            git checkout -t "${branch##* }"
+            ;;
+        reflog)
+            headref=$(echo "$branch" | grep -o 'HEAD@{[0-9]*}')
+            git checkout "$headref"
+            ;;
+        worktree)
+            # muda para o diretório escolhido; 'exec $SHELL' preserva a shell atual
+            cd "$branch" || {
+                echo "Falha ao entrar em '$branch'."
+                return 1
+            }
+            exec "$SHELL" # opcional; mantém prompt consistente pós-cd
+            ;;
+        *)
+            git checkout "${branch##* }"
+            ;;
+    esac
 }
 
-fbr $1
+fbr "$1"
 # ----------------------------------------------------------------------------
 exit 0
