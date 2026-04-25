@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+
+# Verifica se está em um repositório Git
+if ! git rev-parse --is-inside-work-tree &>/dev/null; then
+    echo "Este diretório não é um repositório Git."
+    exit 1
+fi
+
+# Lista todos os branches remotos
+branches=$(git branch -r | grep -v '\->')
+
+for remote_branch in $branches; do
+    echo "==> Branch: $remote_branch"
+
+    # Lista arquivos do branch remoto sem fazer checkout
+    git ls-tree -r --name-only "$remote_branch" || echo "  [Erro ao acessar $remote_branch]"
+
+    echo
+done
+
+echo "✅ Arquivos listados por branch remoto."
