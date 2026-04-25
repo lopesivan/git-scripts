@@ -23,9 +23,9 @@ IdentityFile["ivancarlos"]="~/.ssh/github/id_rsa_ivancarlos"
 
 run() {
 
-	if [ "$1" = "-h" ]; then
+    if [ "$1" = "-h" ]; then
 
-		cat <<EOF
+        cat <<EOF
 Mostra as contas disponíveis, configura o arquivo
 \`~/.config/hub\` com a conta selecionada e salva algumas
 configurações no arquivo .vars que pode ser exportado para o
@@ -34,48 +34,48 @@ ou j, respectivamente assim, pyenv, luaenv, jenv
 EOF
 
         exit 1
-	fi
+    fi
 
-	acc=$(echo lopesivan 42algorithms ivancarlos |
-		xargs -n1 |
-		fzf)
+    acc=$(echo lopesivan 42algorithms ivancarlos |
+        xargs -n1 |
+        fzf)
 
-	_GITHUB_USER="NONE"
-	_GITHUB_TOKEN="NONE"
+    _GITHUB_USER="NONE"
+    _GITHUB_TOKEN="NONE"
 
-	[ ! -z $acc ] || exit 0
+    [ ! -z $acc ] || exit 0
 
-	case x$acc in
-	xlopesivan)
-		GITHUB_USER=$(git config --get github.lopesivan.user)
-		GITHUB_TOKEN=$(git config --get github.lopesivan.token)
-		;;
-	x42algorithms)
-		GITHUB_USER=$(git config --get github.42algorithms.user)
-		GITHUB_TOKEN=$(git config --get github.42algorithms.token)
-		;;
-	xivancarlos)
-		GITHUB_USER=$(git config --get github.ivancarlos.user)
-		GITHUB_TOKEN=$(git config --get github.ivancarlos.token)
-		;;
-	x*)
-		echo ERROR: Not found
-		;;
-	esac
+    case x$acc in
+        xlopesivan)
+            GITHUB_USER=$(git config --get github.lopesivan.user)
+            GITHUB_TOKEN=$(git config --get github.lopesivan.token)
+            ;;
+        x42algorithms)
+            GITHUB_USER=$(git config --get github.42algorithms.user)
+            GITHUB_TOKEN=$(git config --get github.42algorithms.token)
+            ;;
+        xivancarlos)
+            GITHUB_USER=$(git config --get github.ivancarlos.user)
+            GITHUB_TOKEN=$(git config --get github.ivancarlos.token)
+            ;;
+        x*)
+            echo ERROR: Not found
+            ;;
+    esac
 
-	if [ "$1" = "-s" ]; then
+    if [ "$1" = "-s" ]; then
 
-		cat <<EOF | tee ./.vars
+        cat <<EOF | tee ./.vars
 GITHUB_USER=${GITHUB_USER}
 GITHUB_REPO=https://github.com/${GITHUB_USER}?tab=repositories
 EOF
 
-		echo '*****************************************************'
-		echo NOTE:
-		echo "load: eval \"\$(jenv vars)\""
-		echo "load: eval \"\$(pyenv vars)\""
-		echo "load: eval \"\$(xenv vars)\""
-	fi
+        echo '*****************************************************'
+        echo NOTE:
+        echo "load: eval \"\$(jenv vars)\""
+        echo "load: eval \"\$(pyenv vars)\""
+        echo "load: eval \"\$(xenv vars)\""
+    fi
 }
 
 # if [ "$1" = "-r" ]; then
@@ -101,5 +101,8 @@ Host github.com
   User git
   IdentityFile ${IdentityFile["${GITHUB_USER}"]}
 EOF
+
+echo ssh -T git@github.com
+ssh -T git@github.com
 
 exit 0
