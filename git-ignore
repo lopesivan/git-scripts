@@ -1,96 +1,338 @@
 #!/usr/bin/env bash
 
-## Usando web
-URL=https://www.toptal.com/developers/gitignore
-API=$URL/api
-DROPDOWN=${URL}/dropdown/templates.json
+# Git ignore utility script
+# Melhorado com validações, cores e funcionalidades extras
 
-## Usando servidor ivan
-# URL=192.168.2.43
-# PORT=3097
-# API=$URL:$PORT/api
-# DROPDOWN=${URL}:${PORT}/dropdown/templates.json
+set -euo pipefail # Strict mode
 
-CURL=curl
+## Configuração da API
+URL="https://www.toptal.com/developers/gitignore"
+API="$URL/api"
+DROPDOWN="$URL/dropdown/templates.json"
 
+## Usando servidor local (descomentado se necessário)
+# URL="192.168.2.43"
+# PORT="3097"
+# API="$URL:$PORT/api"
+# DROPDOWN="$URL:$PORT/dropdown/templates.json"
+
+CURL="curl"
+
+# Cores para output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+MAGENTA='\033[0;35m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
+# Função para logging
+log_info() {
+    echo -e "${BLUE}[INFO]${NC} $1"
+}
+
+log_warn() {
+    echo -e "${YELLOW}[WARN]${NC} $1"
+}
+
+log_error() {
+    echo -e "${RED}[ERROR]${NC} $1" >&2
+}
+
+log_success() {
+    echo -e "${GREEN}[SUCCESS]${NC} $1"
+}
+
+# Verifica se curl está disponível
+check_dependencies() {
+    if ! command -v curl >/dev/null 2>&1; then
+        log_error "curl não encontrado. Por favor, instale curl."
+        exit 1
+    fi
+
+    if ! command -v git >/dev/null 2>&1; then
+        log_warn "git não encontrado. Algumas funcionalidades podem não funcionar."
+    fi
+}
+
+# Verifica conectividade
+check_connectivity() {
+    if ! curl -s --connect-timeout 5 "$URL" >/dev/null; then
+        log_error "Não foi possível conectar à API. Verifique sua conexão."
+        return 1
+    fi
+    return 0
+}
+
+# Lista arquivos não rastreados pelo git
+list_untracked() {
+    local debug="$1"
+    local save_to_gitignore="$2"
+
+    if ! git rev-parse --git-dir >/dev/null 2>&1; then
+        log_error "Este diretório não é um repositório Git."
+        return 1
+    fi
+
+    local untracked_files
+    untracked_files=$(git status --porcelain | grep '^??' | sed 's/^?? //' | grep -v '.gitignore' || true)
+
+    if [ "$debug" == "ON" ]; then
+        local cmd="git status --porcelain | grep '^??' | sed 's/^?? //' | grep -v '.gitignore'"
+        if [ "$save_to_gitignore" == "save" ]; then
+            echo -e "${CYAN}[DEBUG]${NC} $cmd >> .gitignore"
+        else
+            echo -e "${CYAN}[DEBUG]${NC} $cmd"
+        fi
+        return 0
+    fi
+
+    if [ -z "$untracked_files" ]; then
+        log_info "Nenhum arquivo não rastreado encontrado."
+        return 0
+    fi
+
+    if [ "$save_to_gitignore" == "save" ]; then
+        # Salva arquivos no .gitignore
+        echo -e "${MAGENTA}Adicionando arquivos não rastreados ao .gitignore:${NC}"
+
+        # Adiciona header com timestamp
+        echo "" >>.gitignore
+        echo "# Arquivos não rastreados adicionados em $(date '+%Y-%m-%d %H:%M:%S')" >>.gitignore
+
+        local count=0
+        echo "$untracked_files" | while IFS= read -r file; do
+            if [ -f "$file" ]; then
+                echo -e "  ${GREEN}📄${NC} $file"
+                echo "$file" >>.gitignore
+            elif [ -d "$file" ]; then
+                echo -e "  ${BLUE}📁${NC} $file/"
+                echo "$file/" >>.gitignore
+            else
+                echo -e "  ${YELLOW}❓${NC} $file"
+                echo "$file" >>.gitignore
+            fi
+            ((count++))
+        done
+
+        # Adiciona linha em branco no final
+        echo "" >>.gitignore
+
+        log_success "$count arquivo(s) adicionado(s) ao .gitignore"
+
+        # Pergunta se quer limpar duplicatas
+        echo -n -e "${YELLOW}Deseja remover linhas duplicadas do .gitignore? (y/n): ${NC}"
+        read -r response
+        if [[ "$response" =~ ^[Yy]([Ee][Ss])?$ ]]; then
+            clean_gitignore "OFF"
+        fi
+
+    else
+        # Apenas lista os arquivos
+        echo -e "${MAGENTA}Arquivos não rastreados:${NC}"
+        echo "$untracked_files" | while IFS= read -r file; do
+            if [ -f "$file" ]; then
+                echo -e "  ${GREEN}📄${NC} $file"
+            elif [ -d "$file" ]; then
+                echo -e "  ${BLUE}📁${NC} $file/"
+            else
+                echo -e "  ${YELLOW}❓${NC} $file"
+            fi
+        done
+    fi
+}
+
+# Função para limpar .gitignore (separada para reutilização)
+clean_gitignore() {
+    local debug="$1"
+
+    if [ "$debug" == "ON" ]; then
+        echo -e "${CYAN}[DEBUG]${NC} Removendo arquivos duplicados do .gitignore"
+        return 0
+    fi
+
+    if [ -f .gitignore ]; then
+        log_info "Removendo linhas duplicadas do .gitignore..."
+        # Preserva linhas em branco e comentários, mas remove duplicatas
+        awk '!seen[$0]++' .gitignore >.gitignore.tmp && mv .gitignore.tmp .gitignore
+        log_success ".gitignore limpo"
+    else
+        log_warn ".gitignore não encontrado"
+    fi
+}
+
+# Função principal melhorada
 run() {
+    local debug="OFF"
 
-    local debug=OFF
+    # Parse de argumentos
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            -d | --debug)
+                debug="ON"
+                shift
+                ;;
+            -h | --help)
+                show_help
+                exit 0
+                ;;
+            *)
+                break
+                ;;
+        esac
+    done
 
-    if [ "$1" == "-d" ]; then
-        debug=ON; shift
-    fi
+    # Verifica dependências
+    check_dependencies
 
-    if [ "$1" == "-h" ]; then
-        cat << EOF
-Uso:
-git ignore
-git ignore -L
-git ignore -l
-git ignore -t
-git ignore list
-git ignore -s
-EOF
+    local option="$1"
+    shift 2>/dev/null || true
 
-exit 2
-    fi
-
-    o=$1
-    case $o in
-
-        "-L")
-            shift
-
+    case "$option" in
+        "-L" | "--list-lines")
             if [ "$debug" == "ON" ]; then
-                echo ${CURL} ${API}/list?format=lines
+                echo -e "${CYAN}[DEBUG]${NC} ${CURL} ${API}/list?format=lines"
             else
-                ${CURL} ${API}/list?format=lines
+                if check_connectivity; then
+                    log_info "Listando templates disponíveis (formato de linhas)..."
+                    ${CURL} -s "${API}/list?format=lines" || log_error "Falha ao obter lista de templates"
+                fi
             fi
             ;;
-
-        "-l")
-            shift
-
+        "-l" | "--list" | "list")
             if [ "$debug" == "ON" ]; then
-                echo ${CURL} -L -s ${API}/list
+                echo -e "${CYAN}[DEBUG]${NC} ${CURL} -L -s ${API}/list"
             else
-                ${CURL} -L -s ${API}/list
+                if check_connectivity; then
+                    log_info "Listando templates disponíveis..."
+                    ${CURL} -L -s "${API}/list" || log_error "Falha ao obter lista de templates"
+                fi
             fi
             ;;
-
-        "-t")
+        "-t" | "--search")
+            if [ -z "$1" ]; then
+                log_error "Termo de busca é obrigatório para -t/--search"
+                exit 1
+            fi
             if [ "$debug" == "ON" ]; then
-                [ "$2" ] && echo ${CURL} ${DROPDOWN}?term="$2"
+                echo -e "${CYAN}[DEBUG]${NC} ${CURL} ${DROPDOWN}?term=\"$1\""
             else
-                [ "$2" ] && ${CURL} ${DROPDOWN}?term="$2"
+                if check_connectivity; then
+                    log_info "Buscando templates para: $1"
+                    ${CURL} -s "${DROPDOWN}?term=$1" | jq -r '.[].text' 2>/dev/null ||
+                        ${CURL} -s "${DROPDOWN}?term=$1"
+                fi
             fi
             ;;
-        list)
+        "-s" | "--save")
+            if [ -z "$*" ]; then
+                log_error "Template é obrigatório para -s/--save"
+                exit 1
+            fi
             if [ "$debug" == "ON" ]; then
-                echo ${CURL} -L -s ${API}/list
+                echo -e "${CYAN}[DEBUG]${NC} ${CURL} -L -s ${API}/$* | tee -a .gitignore"
             else
-                ${CURL} -L -s ${API}/list
+                if check_connectivity; then
+                    log_info "Baixando template(s): $*"
+                    if ${CURL} -L -s "${API}/$*" | tee -a .gitignore; then
+                        log_success "Template adicionado ao .gitignore"
+                    else
+                        log_error "Falha ao baixar template"
+                        exit 1
+                    fi
+                fi
             fi
             ;;
-
-        "-s")
-            shift
-            if [ "$debug" == "ON" ]; then
-                echo ${CURL} -L -s ${API}/$* \| tee -a .gitignore
+        "-u" | "--untracked")
+            list_untracked "$debug" "list"
+            ;;
+        "-ua" | "--untracked-add")
+            list_untracked "$debug" "save"
+            ;;
+        "-c" | "--clean")
+            clean_gitignore "$debug"
+            ;;
+        "-v" | "--validate")
+            if [ -f .gitignore ]; then
+                log_info "Validando .gitignore..."
+                if git check-ignore --stdin <.gitignore >/dev/null 2>&1; then
+                    log_success ".gitignore é válido"
+                else
+                    log_warn "Algumas entradas do .gitignore podem não estar funcionando corretamente"
+                fi
             else
-                ${CURL} -L -s ${API}/$* | tee -a .gitignore
+                log_warn ".gitignore não encontrado"
             fi
+            ;;
+        "")
+            log_error "Nenhuma opção fornecida. Use -h/--help para ver as opções disponíveis."
+            exit 1
             ;;
         *)
             if [ "$debug" == "ON" ]; then
-                echo ${CURL} -L -s ${API}/$*
+                echo -e "${CYAN}[DEBUG]${NC} ${CURL} -L -s ${API}/$option $*"
             else
-                ${CURL} -L -s ${API}/$*
+                if check_connectivity; then
+                    log_info "Baixando template: $option $*"
+                    ${CURL} -L -s "${API}/$option" "$@" || log_error "Falha ao baixar template"
+                fi
             fi
             ;;
     esac
 }
 
-run $*
+# Função de ajuda melhorada
+show_help() {
+    cat <<'EOF'
+🚀 Git Ignore Utility - Gerador de arquivos .gitignore
+
+USAGE:
+    git-ignore [OPTIONS] [TEMPLATE...]
+
+OPTIONS:
+    -h, --help          Mostra esta ajuda
+    -d, --debug         Modo debug (mostra comandos sem executar)
+    -L, --list-lines    Lista templates disponíveis (uma por linha)
+    -l, --list, list    Lista templates disponíveis (formato JSON)
+    -t, --search TERM   Busca templates por termo
+    -s, --save TEMPLATE Salva template(s) no .gitignore local
+    -u, --untracked     Lista arquivos não rastreados pelo git
+    -ua, --untracked-add Adiciona arquivos não rastreados ao .gitignore
+    -c, --clean         Remove linhas duplicadas do .gitignore
+    -v, --validate      Valida o .gitignore atual
+
+EXAMPLES:
+    git-ignore -l                    # Lista todos os templates
+    git-ignore -t python             # Busca templates relacionados ao Python
+    git-ignore -s python node        # Adiciona templates Python e Node ao .gitignore
+    git-ignore python                # Mostra template Python (sem salvar)
+    git-ignore -u                    # Lista arquivos não rastreados
+    git-ignore -ua                   # Adiciona arquivos não rastreados ao .gitignore
+    git-ignore -c                    # Limpa .gitignore (remove duplicatas)
+
+TEMPLATES POPULARES:
+    Python, Node, Java, C++, Go, Rust, macOS, Windows, Linux,
+    VisualStudioCode, IntelliJ, Vim, Emacs
+
+Para mais templates, use: git-ignore -l
+EOF
+}
+
+# Execução principal
+main() {
+    if [ $# -eq 0 ]; then
+        show_help
+        exit 1
+    fi
+
+    run "$@"
+}
+
+# Trap para cleanup
+trap 'log_error "Script interrompido"' INT TERM
+
+# Executa função principal
+main "$@"
 
 exit 0
